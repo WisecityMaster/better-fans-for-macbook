@@ -21,6 +21,8 @@ struct SparklineCard: View {
                     .overlay {
                         Text("Reuniendo datos…").font(.caption).foregroundStyle(.secondary)
                             .opacity(samples.count >= 2 ? 0 : 1)
+                            // opacity alone keeps it in the accessibility tree
+                            .accessibilityHidden(samples.count >= 2)
                     }
                 HStack {
                     Text("CPU · últimos 10 min").font(.caption).foregroundStyle(.secondary)

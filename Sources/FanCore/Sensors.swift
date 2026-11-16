@@ -72,7 +72,7 @@ public final class SensorReader {
 }
 
 /// One temperature reading for display.
-public struct SensorValue: Identifiable, Equatable {
+public struct SensorValue: Identifiable, Equatable, Sendable {
     public let key: String
     public let celsius: Double
     public var id: String { key }

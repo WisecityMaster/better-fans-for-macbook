@@ -22,10 +22,10 @@ struct BetterFansApp: App {
                 .environmentObject(model)
                 .environmentObject(model.history)
         } label: {
-            HStack(spacing: 3) {
-                Image(systemName: "fanblades.fill")
-                Text(model.menuBarTitle).monospacedDigit()
-            }
+            Label(model.menuBarTitle, systemImage: "fanblades.fill")
+                .labelStyle(.titleAndIcon)
+                .monospacedDigit()
+                .accessibilityLabel("Better Fans, \(model.menuBarTitle)")
         }
         .menuBarExtraStyle(.window)
 

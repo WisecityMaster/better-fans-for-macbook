@@ -4,36 +4,6 @@ import FanCore
 import OSLog
 import ServiceManagement
 
-/// Reads the SMC off the main thread with its own connection. Unprivileged: reads only.
-final class Sampler {
-    struct Reading {
-        var cpu: Double?
-        var gpu: Double?
-        var fans: [FanReading]
-    }
-
-    private let queue = DispatchQueue(label: "betterfans.sampler", qos: .utility)
-    private var sensors: SensorReader?
-
-    func read(_ done: @escaping (Reading) -> Void) {
-        queue.async {
-            if self.sensors == nil, let smc = try? SMC() { self.sensors = SensorReader(smc: smc) }
-            let temps = self.sensors?.hottestCPUAndGPU()
-            let reading = Reading(cpu: temps?.cpu, gpu: temps?.gpu, fans: self.sensors?.fans() ?? [])
-            DispatchQueue.main.async { done(reading) }
-        }
-    }
-}
-
-/// Timeline kept apart from `AppModel` so a new sample only redraws the charts.
-@MainActor
-final class HistoryStore: ObservableObject {
-    /// One hour at the 2 s poll rate is ~1800 samples.
-    @Published private(set) var history = TemperatureHistory(window: 3600)
-
-    func append(_ s: HistorySample) { history.append(s) }
-}
-
 @MainActor
 final class AppModel: ObservableObject {
     @Published var profiles: [Profile]
@@ -51,6 +21,8 @@ final class AppModel: ObservableObject {
     @Published var helperReachable = false
     @Published var launchAtLogin: Bool = SMAppService.mainApp.status == .enabled
     @Published var loginItemError: String?
+    /// Set when writing profiles.json fails, so an edit isn't silently lost.
+    @Published var saveError: String?
 
     let history = HistoryStore()
 
@@ -58,10 +30,10 @@ final class AppModel: ObservableObject {
     private let sampler = Sampler()
     private let log = Logger(subsystem: "com.whitesound.betterfans", category: "poll")
     private var connection: NSXPCConnection?
-    private var timer: Timer?
+    private var pollTask: Task<Void, Never>?
     private var lastPoll: Date?
-    private var pendingSave: DispatchWorkItem?
-    private var pendingSend: DispatchWorkItem?
+    private var pendingSave: Task<Void, Never>?
+    private var pendingSend: Task<Void, Never>?
     private let isPreview: Bool
 
     /// Must stay well under the helper's 10 s watchdog; also the history resolution.
@@ -72,15 +44,15 @@ final class AppModel: ObservableObject {
         let loaded = preview ? Profile.builtIns : ProfileStore().load()
         profiles = loaded
         let saved = preview ? nil : UserDefaults.standard.string(forKey: "selectedProfile")
-        selectedName = loaded.contains { $0.name == saved } ? saved! : Profile.apple.name
+        selectedName = if let saved, loaded.contains(where: { $0.name == saved }) { saved } else { Profile.apple.name }
         guard !preview else { return }
-        let t = Timer(timeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.poll()
+                try? await Task.sleep(for: .seconds(Self.pollInterval))
+            }
         }
-        t.tolerance = 0.3
-        RunLoop.main.add(t, forMode: .common)
-        timer = t
-        poll()
     }
 
     // MARK: Derived state
@@ -99,7 +71,7 @@ final class AppModel: ObservableObject {
     var selected: Profile { profiles.first { $0.name == selectedName } ?? .apple }
 
     var menuBarTitle: String {
-        temperature.map { String(format: "%.0f°", $0) } ?? "–°"
+        temperature.map { "\($0.formatted(.number.precision(.fractionLength(0))))°" } ?? "–°"
     }
 
     /// Speed the selected profile asks for right now, as % of each fan's range.
@@ -149,46 +121,60 @@ final class AppModel: ObservableObject {
     private func scheduleSave() {
         guard !isPreview else { return }
         pendingSave?.cancel()
-        let item = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            try? self.store.save(self.profiles.filter { !Profile.builtIns.contains($0) })
+        pendingSave = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled else { return }
+            self?.saveNow()
         }
-        pendingSave = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
     }
 
     /// Writes a pending profile edit now (used before quitting, so the last change isn't lost).
     func flushSave() {
-        guard let item = pendingSave else { return }
-        item.perform()
-        item.cancel()
+        guard let pending = pendingSave else { return }
+        pending.cancel()
         pendingSave = nil
+        saveNow()
+    }
+
+    private func saveNow() {
+        do {
+            try store.save(profiles.filter { !Profile.builtIns.contains($0) })
+            setIfChanged(\.saveError, nil)
+        } catch {
+            saveError = "No se pudieron guardar los perfiles: \(error.localizedDescription)"
+        }
     }
 
     private func scheduleSend() {
         pendingSend?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.sendProfile() }
-        pendingSend = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: item)
+        pendingSend = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            self?.sendProfile()
+        }
     }
 
     // MARK: Polling
 
-    func poll() {
-        let now = Date()
+    func poll() async {
+        let now = Date.now
         if let last = lastPoll, now.timeIntervalSince(last) > 8 {
             // A stall this long risks the helper's 10 s watchdog handing fans back to macOS.
             log.warning("poll gap \(now.timeIntervalSince(last), format: .fixed(precision: 1)) s")
         }
         lastPoll = now
-        sampler.read { [weak self] r in
-            guard let self else { return }
-            self.cpuTemp = r.cpu
-            self.gpuTemp = r.gpu
-            self.fans = r.fans
-            self.history.append(HistorySample(time: now, cpu: r.cpu, gpu: r.gpu, rpm: r.fans.map(\.actualRPM)))
-        }
-        sendProfile()
+        sendProfile()  // also the helper's heartbeat
+        let r = await sampler.read()
+        setIfChanged(\.cpuTemp, r.cpu)
+        setIfChanged(\.gpuTemp, r.gpu)
+        setIfChanged(\.fans, r.fans)
+        history.append(HistorySample(time: now, cpu: r.cpu, gpu: r.gpu, rpm: r.fans.map(\.actualRPM)))
+    }
+
+    /// `@Published` notifies on every assignment, even of an equal value; skipping those avoids
+    /// redrawing every view that observes the model twice per poll.
+    private func setIfChanged<T: Equatable>(_ keyPath: ReferenceWritableKeyPath<AppModel, T>, _ value: T) {
+        if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
     }
 
     func resetToAuto() {
@@ -244,13 +230,13 @@ final class AppModel: ObservableObject {
         if connection == nil {
             let c = NSXPCConnection(machServiceName: fanHelperMachName, options: .privileged)
             c.remoteObjectInterface = NSXPCInterface(with: FanHelperProtocol.self)
-            c.invalidationHandler = { [weak self] in Task { @MainActor in self?.connection = nil; self?.helperReachable = false } }
-            c.interruptionHandler = { [weak self] in Task { @MainActor in self?.helperReachable = false } }
+            c.invalidationHandler = { [weak self] in Task { @MainActor in self?.connection = nil; self?.applyHelperReply(nil) } }
+            c.interruptionHandler = { [weak self] in Task { @MainActor in self?.setIfChanged(\.helperReachable, false) } }
             c.resume()
             connection = c
         }
         return connection?.remoteObjectProxyWithErrorHandler { [weak self] _ in
-            Task { @MainActor in self?.helperReachable = false; self?.helperStatus = nil }
+            Task { @MainActor in self?.applyHelperReply(nil) }
         } as? FanHelperProtocol
     }
 
@@ -258,16 +244,18 @@ final class AppModel: ObservableObject {
         guard let data = try? JSONEncoder().encode(selected) else { return }
         remote()?.apply(profile: data) { [weak self] reply in
             let status = try? JSONDecoder().decode(HelperStatus.self, from: reply)
-            Task { @MainActor in
-                self?.helperReachable = status != nil
-                self?.helperStatus = status
-            }
+            Task { @MainActor in self?.applyHelperReply(status) }
         }
+    }
+
+    private func applyHelperReply(_ status: HelperStatus?) {
+        setIfChanged(\.helperReachable, status != nil)
+        setIfChanged(\.helperStatus, status)
     }
 
     // MARK: Preview (snapshots)
 
-    /// Fixed sample state for `--snapshot`: no SMC, no helper, no timer.
+    /// Fixed sample state for `--snapshot`: no SMC, no helper, no polling.
     static func preview(selected: String = Profile.quiet.name, helper: Bool = true) -> AppModel {
         let m = AppModel(preview: true)
         m.selectedName = selected
@@ -281,7 +269,7 @@ final class AppModel: ObservableObject {
             FanReading(index: 0, actualRPM: 3912, targetRPM: 3920, minRPM: 2317, maxRPM: 7826, mode: mode),
             FanReading(index: 1, actualRPM: 4087, targetRPM: 3920, minRPM: 2317, maxRPM: 7826, mode: mode),
         ]
-        let now = Date()
+        let now = Date.now
         for i in stride(from: 1800, through: 4, by: -4) {
             let t = Double(1800 - i)
             let load = 0.5 + 0.5 * sin(t / 260) + (i < 420 && i > 240 ? 0.35 : 0)

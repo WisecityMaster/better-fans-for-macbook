@@ -39,15 +39,24 @@ struct EditorView: View {
                     NotCurvePanel(profile: profile, createCurve: createCurve)
                 }
 
-                Spacer(minLength: 0)
-                Divider()
-                HStack {
-                    TextField("Nombre para una copia…", text: $state.newName)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(duplicate)
-                    Button("Duplicar perfil", action: duplicate)
-                        .disabled(state.newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                if let error = model.saveError {
+                    Label(error, systemImage: "exclamationmark.circle").font(.caption).foregroundStyle(.red)
                 }
+                Spacer(minLength: 0)
+                // Only curves are copied here; other profiles use "Crear una curva editable" above.
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider()
+                    HStack {
+                        TextField("Nombre para una copia…", text: $state.newName)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(duplicate)
+                        Button("Duplicar perfil", action: duplicate)
+                            .disabled(state.newName.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+                .opacity(profile.isCurve ? 1 : 0)
+                .disabled(!profile.isCurve)
+                .accessibilityHidden(!profile.isCurve)
             }
             .padding(20)
         }
@@ -98,8 +107,8 @@ struct EditorView: View {
     private func createCurve() { model.duplicate(Profile.legsCool, as: "Mi curva") }
 
     private func duplicate() {
-        let source = model.selected.isCurve ? model.selected : Profile.legsCool
-        model.duplicate(source, as: state.newName)
+        guard model.selected.isCurve else { return }
+        model.duplicate(model.selected, as: state.newName)
         state.newName = ""
     }
 }

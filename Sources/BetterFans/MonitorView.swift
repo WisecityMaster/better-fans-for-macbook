@@ -40,6 +40,7 @@ struct MonitorView: View {
             Text("Reuniendo datos… el gráfico se llena con una muestra cada \(Int(AppModel.pollInterval)) s mientras la app está abierta.")
                 .font(.caption).foregroundStyle(.secondary)
                 .opacity(samples.count < 3 ? 1 : 0)
+                .accessibilityHidden(samples.count >= 3)  // opacity alone keeps it in the tree
         }
         .padding(18)
         .frame(minWidth: 680, minHeight: 560)

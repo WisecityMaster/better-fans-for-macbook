@@ -1,6 +1,6 @@
 import Foundation
 
-public struct FanReading: Codable, Equatable {
+public struct FanReading: Codable, Equatable, Sendable {
     public var index: Int
     public var actualRPM: Double
     public var targetRPM: Double

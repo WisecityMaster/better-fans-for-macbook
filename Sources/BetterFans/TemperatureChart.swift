@@ -22,6 +22,7 @@ struct TemperatureChart: View {
                         .foregroundStyle(.linearGradient(colors: [Theme.cpu.opacity(compact ? 0.35 : 0.25), Theme.cpu.opacity(0.02)],
                                                          startPoint: .top, endPoint: .bottom))
                         .interpolationMethod(.monotone)
+                        .accessibilityHidden(true)  // decorative fill; the line below carries the value
                     LineMark(x: .value("Hora", s.time), y: .value("°C", cpu), series: .value("Sensor", "CPU"))
                         .foregroundStyle(by: .value("Sensor", "CPU"))
                         .interpolationMethod(.monotone)
@@ -64,6 +65,19 @@ struct TemperatureChart: View {
         .chartOverlay { proxy in
             if let onHover { ChartHoverLayer(proxy: proxy, onHover: onHover) }
         }
+        .accessibilityLabel("Temperatura de CPU y GPU")
+        .accessibilityValue(summary)
         .accessibilityHidden(compact)  // the sparkline's card already describes it
+    }
+
+    /// e.g. "CPU entre 55 °C y 85 °C y GPU entre 50 °C y 72 °C", for VoiceOver.
+    private var summary: String {
+        func range(_ name: String, _ values: [Double]) -> String? {
+            guard let lo = values.min(), let hi = values.max() else { return nil }
+            return "\(name) entre \(Theme.celsius(lo)) y \(Theme.celsius(hi))"
+        }
+        return [range("CPU", samples.compactMap(\.cpu)), range("GPU", samples.compactMap(\.gpu))]
+            .compactMap { $0 }
+            .formatted(.list(type: .and))
     }
 }

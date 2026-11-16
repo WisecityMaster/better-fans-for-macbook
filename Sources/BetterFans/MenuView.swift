@@ -68,6 +68,10 @@ struct MenuView: View {
         if let detail = model.status.detail {
             Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
+        if let error = model.saveError {
+            Label(error, systemImage: "exclamationmark.circle")
+                .font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+        }
         if let error = model.loginItemError {
             Label(error, systemImage: "exclamationmark.circle")
                 .font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)

@@ -16,6 +16,8 @@ final class AppModel: ObservableObject {
     }
     @Published var cpuTemp: Double?
     @Published var gpuTemp: Double?
+    /// Air inside the chassis (`TAOL` on M5 Pro), shown as "ambiente": above room temperature.
+    @Published var ambientTemp: Double?
     @Published var fans: [FanReading] = []
     @Published var helperStatus: HelperStatus?
     @Published var helperReachable = false
@@ -167,8 +169,9 @@ final class AppModel: ObservableObject {
         let r = await sampler.read()
         setIfChanged(\.cpuTemp, r.cpu)
         setIfChanged(\.gpuTemp, r.gpu)
+        setIfChanged(\.ambientTemp, r.ambient)
         setIfChanged(\.fans, r.fans)
-        history.append(HistorySample(time: now, cpu: r.cpu, gpu: r.gpu, rpm: r.fans.map(\.actualRPM)))
+        history.append(HistorySample(time: now, cpu: r.cpu, gpu: r.gpu, rpm: r.fans.map(\.actualRPM), ambient: r.ambient))
     }
 
     /// `@Published` notifies on every assignment, even of an equal value; skipping those avoids
@@ -261,6 +264,7 @@ final class AppModel: ObservableObject {
         m.selectedName = selected
         m.cpuTemp = 84.6
         m.gpuTemp = 71.9
+        m.ambientTemp = 29.8
         let controlling = helper && selected != Profile.apple.name
         m.helperReachable = helper
         m.helperStatus = helper ? HelperStatus(controlling: controlling, profile: selected, temperature: 84.6, lastError: nil) : nil
@@ -276,9 +280,10 @@ final class AppModel: ObservableObject {
             let cpu = 58 + 26 * load + 3 * sin(t / 9)
             let gpu = 52 + 18 * max(0, sin(t / 400)) + 1.5 * sin(t / 13)
             let rpm = 2317 + max(0, (cpu - 65) / 33) * 3500
-            m.history.append(HistorySample(time: now.addingTimeInterval(-Double(i)), cpu: cpu, gpu: gpu, rpm: [rpm, rpm * 1.04]))
+            let ambient = 28.5 + 1.5 * load
+            m.history.append(HistorySample(time: now.addingTimeInterval(-Double(i)), cpu: cpu, gpu: gpu, rpm: [rpm, rpm * 1.04], ambient: ambient))
         }
-        m.history.append(HistorySample(time: now, cpu: m.cpuTemp, gpu: m.gpuTemp, rpm: m.fans.map(\.actualRPM)))
+        m.history.append(HistorySample(time: now, cpu: m.cpuTemp, gpu: m.gpuTemp, rpm: m.fans.map(\.actualRPM), ambient: m.ambientTemp))
         return m
     }
 }

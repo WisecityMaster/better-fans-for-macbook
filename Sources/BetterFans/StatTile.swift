@@ -11,6 +11,7 @@ struct StatTile: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title).font(.caption).foregroundStyle(.secondary)
             Text(value).font(.title3.weight(.semibold)).monospacedDigit().foregroundStyle(tint)
+                .lineLimit(1).minimumScaleFactor(0.7)  // long profile names stay on one line
             if let detail { Text(detail).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

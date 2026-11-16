@@ -6,6 +6,7 @@ Fan control for Apple Silicon MacBooks, from the menu bar. It replaces macOS's c
 
 - Menu bar app (SwiftUI) showing live CPU/GPU temperature, a 10-minute sparkline and fan speeds.
 - *Monitor* window with temperature and fan-speed charts (5 min to 1 h, hover for exact values).
+- Ambient reading from the chassis air sensor (`TAOL` on M5 Pro, otherwise the first `TA*` key). It is air *inside* the Mac, so it reads a few degrees above the room; display only, it never drives the fans.
 - Built-in profiles: *Automático (Apple)* (macOS default), *Frío para piernas* (cool for your lap), *Silencioso* (quiet) and *Máximo* (maximum). You can create your own.
 - *Curvas* window: visual curve editor (drag points, double-click to add one, right-click to remove it), hysteresis and ramp settings, duplicate, delete or reset profiles.
 - Hysteresis and speed ramping to avoid oscillating fan noise.

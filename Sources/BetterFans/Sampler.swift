@@ -5,6 +5,7 @@ actor Sampler {
     struct Reading: Sendable {
         var cpu: Double?
         var gpu: Double?
+        var ambient: Double?
         var fans: [FanReading]
     }
 
@@ -13,6 +14,6 @@ actor Sampler {
     func read() -> Reading {
         if sensors == nil, let smc = try? SMC() { sensors = SensorReader(smc: smc) }
         let temps = sensors?.hottestCPUAndGPU()
-        return Reading(cpu: temps?.cpu, gpu: temps?.gpu, fans: sensors?.fans() ?? [])
+        return Reading(cpu: temps?.cpu, gpu: temps?.gpu, ambient: sensors?.ambient(), fans: sensors?.fans() ?? [])
     }
 }

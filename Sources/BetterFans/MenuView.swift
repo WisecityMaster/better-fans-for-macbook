@@ -39,13 +39,20 @@ struct MenuView: View {
 
     // MARK: Sections
 
+    /// Status on its own row so three readings fit the 320 pt menu without truncating the pill.
     private var header: some View {
-        HStack(alignment: .top, spacing: 14) {
-            reading("CPU", model.cpuTemp, size: 34)
-            reading("GPU", model.gpuTemp, size: 22)
-            Spacer()
+        VStack(alignment: .leading, spacing: 8) {
             let s = model.status
             StatusPill(text: s.text, systemImage: s.icon, tint: s.tint)
+            HStack(alignment: .top, spacing: 18) {
+                reading("CPU", model.cpuTemp, size: 34)
+                reading("GPU", model.gpuTemp, size: 22)
+                reading("Ambiente", model.ambientTemp, size: 22)
+                    .help(Theme.ambientHelp)
+                    .opacity(model.ambientTemp == nil ? 0 : 1)
+                    .accessibilityHidden(model.ambientTemp == nil)
+                Spacer(minLength: 0)
+            }
         }
     }
 

@@ -45,4 +45,7 @@ enum Theme {
     }
 
     static let card = Color.primary.opacity(0.05)
+
+    /// Tooltip wherever the ambient reading appears.
+    static let ambientHelp = "Aire dentro del equipo (sensor TAOL). Marca unos grados más que la sala, y más con carga o cargando."
 }

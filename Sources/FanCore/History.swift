@@ -6,13 +6,16 @@ public struct HistorySample: Equatable, Identifiable {
     public let cpu: Double?
     public let gpu: Double?
     public let rpm: [Double]
+    /// Air temperature inside the chassis (`SensorReader.ambient()`); display only.
+    public let ambient: Double?
     public var id: Date { time }
 
-    public init(time: Date, cpu: Double?, gpu: Double?, rpm: [Double]) {
+    public init(time: Date, cpu: Double?, gpu: Double?, rpm: [Double], ambient: Double? = nil) {
         self.time = time
         self.cpu = cpu
         self.gpu = gpu
         self.rpm = rpm
+        self.ambient = ambient
     }
 
     /// The value the fan curve reacts to.
@@ -64,7 +67,8 @@ public struct TemperatureHistory {
             result.append(HistorySample(time: last.time,
                                         cpu: chunk.compactMap(\.cpu).max(),
                                         gpu: chunk.compactMap(\.gpu).max(),
-                                        rpm: last.rpm))
+                                        rpm: last.rpm,
+                                        ambient: last.ambient))
             chunk.removeAll(keepingCapacity: true)
         }
         for s in slice {

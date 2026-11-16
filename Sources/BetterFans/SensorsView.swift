@@ -127,7 +127,7 @@ struct SensorsView: View {
                             .font(.caption2).foregroundStyle(Color.accentColor)
                         Text(s.key).font(.system(.caption, design: .monospaced))
                         Spacer(minLength: 4)
-                        Text(format(s.celsius)).font(.caption).monospacedDigit().foregroundStyle(color(s.celsius))
+                        Text(format(s.celsius)).font(.caption).monospacedDigit().foregroundStyle(Theme.temp(s.celsius))
                     }
                 }
             }
@@ -135,13 +135,4 @@ struct SensorsView: View {
     }
 
     private func format(_ t: Double) -> String { String(format: "%.1f °C", t) }
-
-    private func color(_ t: Double) -> Color {
-        switch t {
-        case ..<60: return .green
-        case ..<80: return .primary
-        case ..<90: return .orange
-        default:    return .red
-        }
-    }
 }

@@ -46,6 +46,16 @@ enum Theme {
 
     static let card = Color.primary.opacity(0.05)
 
+    /// "+1,5 °C" / "−3,2 °C", for calibration offsets.
+    static func signedCelsius(_ v: Double) -> String {
+        "\(v.formatted(.number.precision(.fractionLength(1)).sign(strategy: .always(includingZero: false)))) °C"
+    }
+
     /// Tooltip wherever the ambient reading appears.
-    static let ambientHelp = "Aire dentro del equipo (sensor TAOL). Marca unos grados más que la sala, y más con carga o cargando."
+    static func ambientHelp(offset: Double) -> String {
+        let sensor = "Aire dentro del equipo (sensor TAOL)."
+        return offset == 0
+            ? "\(sensor) Marca unos grados más que la sala, y más con carga o cargando. Clic para calibrar."
+            : "\(sensor) Ajustado \(signedCelsius(offset)) con un termómetro; con carga o cargando igual sube. Clic para cambiar."
+    }
 }

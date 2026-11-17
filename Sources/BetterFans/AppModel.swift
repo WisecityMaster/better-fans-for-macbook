@@ -18,6 +18,13 @@ final class AppModel: ObservableObject {
     @Published var gpuTemp: Double?
     /// Air inside the chassis (`TAOL` on M5 Pro), shown as "ambiente": above room temperature.
     @Published var ambientTemp: Double?
+    /// Degrees added to `ambientTemp` for display so it matches a room thermometer; 0 = not calibrated.
+    @Published var ambientOffset: Double {
+        didSet {
+            guard ambientOffset != oldValue, !isPreview else { return }
+            UserDefaults.standard.set(ambientOffset, forKey: "ambientOffset")
+        }
+    }
     @Published var fans: [FanReading] = []
     @Published var helperStatus: HelperStatus?
     @Published var helperReachable = false
@@ -47,6 +54,7 @@ final class AppModel: ObservableObject {
         profiles = loaded
         let saved = preview ? nil : UserDefaults.standard.string(forKey: "selectedProfile")
         selectedName = if let saved, loaded.contains(where: { $0.name == saved }) { saved } else { Profile.apple.name }
+        ambientOffset = preview ? 0 : UserDefaults.standard.double(forKey: "ambientOffset")
         guard !preview else { return }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
@@ -58,6 +66,20 @@ final class AppModel: ObservableObject {
     }
 
     // MARK: Derived state
+
+    /// Ambient reading as shown to the user, with the calibration applied.
+    var ambientDisplay: Double? { AmbientCalibration.apply(ambientOffset, to: ambientTemp) }
+
+    /// Raw sensor value used for calibrating: the last two minutes' average, so one noisy sample
+    /// doesn't set the offset.
+    var ambientForCalibration: Double? {
+        history.history.stats(120, now: .now) { $0.ambient }?.avg ?? ambientTemp
+    }
+
+    func calibrateAmbient(room: Double) {
+        guard let sensor = ambientForCalibration else { return }
+        ambientOffset = AmbientCalibration.offset(room: room, sensor: sensor)
+    }
 
     /// What the curve reacts to: the hottest CPU or GPU sensor.
     var temperature: Double? {

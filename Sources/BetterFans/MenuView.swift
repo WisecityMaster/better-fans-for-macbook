@@ -35,6 +35,7 @@ struct MenuView: View {
         }
         .padding(14)
         .frame(width: 320)
+        .background { GeometryReader { MenuWindowFitter(height: $0.size.height) } }
     }
 
     // MARK: Sections
@@ -47,9 +48,9 @@ struct MenuView: View {
             HStack(alignment: .top, spacing: 18) {
                 reading("CPU", model.cpuTemp, size: 34)
                 reading("GPU", model.gpuTemp, size: 22)
-                reading("Ambiente", model.ambientTemp, size: 22)
-                    .help(Theme.ambientHelp)
+                AmbientCalibrationButton { reading("Ambiente", model.ambientDisplay, size: 22) }
                     .opacity(model.ambientTemp == nil ? 0 : 1)
+                    .disabled(model.ambientTemp == nil)
                     .accessibilityHidden(model.ambientTemp == nil)
                 Spacer(minLength: 0)
             }

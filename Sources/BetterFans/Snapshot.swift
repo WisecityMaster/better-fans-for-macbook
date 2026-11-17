@@ -18,7 +18,10 @@ enum Snapshot {
         let offline = AppModel.preview(selected: Profile.apple.name, helper: false)
         func menu(_ m: AppModel) -> AnyView { AnyView(MenuView().environmentObject(m).environmentObject(m.history)) }
         func monitor(_ m: AppModel) -> AnyView { AnyView(MonitorView().environmentObject(m).environmentObject(m.history)) }
+        let calibrating = AmbientCalibrationState()
+        calibrating.room = 22
         let views: [(name: String, view: AnyView, size: CGSize)] = [
+            ("ambient-calibration", AnyView(AmbientCalibrationView(state: calibrating).environmentObject(apple)), CGSize(width: 300, height: 0)),
             ("menu", menu(quiet), CGSize(width: 320, height: 0)),
             ("menu-apple", menu(apple), CGSize(width: 320, height: 0)),
             ("menu-nohelper", menu(offline), CGSize(width: 320, height: 0)),

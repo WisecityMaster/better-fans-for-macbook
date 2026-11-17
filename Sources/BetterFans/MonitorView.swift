@@ -21,9 +21,13 @@ struct MonitorView: View {
             HStack(spacing: 10) {
                 StatTile(title: "CPU ahora", value: Theme.celsius(model.cpuTemp), detail: summary(cpuStats), tint: Theme.temp(model.cpuTemp))
                 StatTile(title: "GPU ahora", value: Theme.celsius(model.gpuTemp), detail: summary(gpuStats), tint: Theme.temp(model.gpuTemp))
-                StatTile(title: "Ambiente", value: Theme.celsius(model.ambientTemp, decimals: 1),
-                         detail: summary(store.history.stats(state.span, now: now) { $0.ambient }), tint: Theme.temp(model.ambientTemp))
-                    .help(Theme.ambientHelp)
+                AmbientCalibrationButton {
+                    StatTile(title: model.ambientOffset == 0 ? "Ambiente" : "Ambiente · ajustado",
+                             value: Theme.celsius(model.ambientDisplay, decimals: 1),
+                             detail: summary(store.history.stats(state.span, now: now) { AmbientCalibration.apply(model.ambientOffset, to: $0.ambient) }),
+                             tint: Theme.temp(model.ambientDisplay))
+                }
+                .disabled(model.ambientTemp == nil)
                 StatTile(title: "Ventiladores", value: averageRPM, detail: model.fans.isEmpty ? nil : "promedio de \(model.fans.count)")
                 StatTile(title: "Perfil", value: model.selected.name,
                          detail: model.targetPercent.map { "pide \(Int($0.rounded())) % ahora" } ?? "macOS decide")
